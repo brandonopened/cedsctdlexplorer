@@ -134,6 +134,8 @@ svg text{font-family:"Public Sans",system-ui,sans-serif}
 .dot{cursor:pointer}
 .halo{paint-order:stroke;stroke:var(--panel);stroke-width:3px;stroke-linejoin:round}
 .hdr-band{fill:color-mix(in srgb,var(--panel) 92%,transparent)}
+/* Row labels sit over the map rather than in a band, so they get their own plate. */
+.hdr-pill{fill:color-mix(in srgb,var(--panel) 90%,transparent);stroke:var(--rule);stroke-width:.5px}
 .link{fill:none;stroke:var(--focus);stroke-width:1.6;vector-effect:non-scaling-stroke;opacity:.85}
 
 @media (max-width:1100px){

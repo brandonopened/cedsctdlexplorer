@@ -4,14 +4,17 @@ const SERVER = "educore new", TOOL = "cypherQuery";
 const CTDL_SRCS = ["CTDL","CTDLASN","CTDLQData"];
 const SRC_LABEL = {CEDS:"CEDS", CTDL:"CTDL", CTDLASN:"CTDL-ASN", CTDLQData:"CTDL-QData"};
 
+// `short` is only for the map's sticky column headers, where a cell can be
+// ~75px wide when zoomed out. A chosen abbreviation reads better than an
+// ellipsis cutting "Credentials & competencies" down to "Credenti…".
 const STAGES = [
-  {id:"el",  label:"Early learning"},
-  {id:"k12", label:"K–12"},
-  {id:"ps",  label:"Postsecondary"},
-  {id:"ad",  label:"Adult ed & CTE"},
-  {id:"cr",  label:"Credentials & competencies"},
-  {id:"wf",  label:"Workforce & career"},
-  {id:"all", label:"Across the continuum"}
+  {id:"el",  label:"Early learning",             short:"Early"},
+  {id:"k12", label:"K–12",                       short:"K–12"},
+  {id:"ps",  label:"Postsecondary",              short:"Postsec."},
+  {id:"ad",  label:"Adult ed & CTE",             short:"Adult & CTE"},
+  {id:"cr",  label:"Credentials & competencies", short:"Credentials"},
+  {id:"wf",  label:"Workforce & career",         short:"Workforce"},
+  {id:"all", label:"Across the continuum",       short:"Across all"}
 ];
 const TOPICS = [
   "Learners & people","Organizations & places","Programs & learning","Assessment",
@@ -268,7 +271,11 @@ function drawLabels(){
   if (k > 0.55){
     S.cells.forEach(c=>{
       const x = c.col*CELL+22, y = c.row*CELL+30;
-      if (inView(x+CELL/2,y+CELL/2,CELL)) labels.push({id:"cell:"+c.stage+c.topic, x, y, t:`${stageLabel[c.stage]} · ${c.topic}`, cls:"cell", anchor:"start"});
+      if (!inView(x+CELL/2,y+CELL/2,CELL)) return;
+      // Drop the caption once its row has slid under the sticky header band,
+      // otherwise it ghosts behind the column header.
+      if (T.applyY(y) < TOPBAND + 10) return;
+      labels.push({id:"cell:"+c.stage+c.topic, x, y, t:`${stageLabel[c.stage]} · ${c.topic}`, cls:"cell", anchor:"start"});
     });
   }
   // class labels
@@ -305,23 +312,75 @@ function drawLabels(){
 
   // sticky headers
   const hdr = [];
-  STAGES.forEach((s,i)=>{ const x0 = T.applyX(i*CELL), x1 = T.applyX((i+1)*CELL); if (x1>0 && x0<vw) hdr.push({id:"s"+i, kind:"col", x:Math.max(8, Math.min((x0+x1)/2, vw-8)), y:16, t:s.label, w:x1-x0, i}); });
-  TOPICS.forEach((t,i)=>{ const y0 = T.applyY(i*CELL), y1 = T.applyY((i+1)*CELL); if (y1>34 && y0<vh) hdr.push({id:"t"+i, kind:"row", x:10, y:Math.max(46, Math.min((y0+y1)/2, vh-10)), t, h:y1-y0, i}); });
+  STAGES.forEach((s,i)=>{
+    const x0 = T.applyX(i*CELL), x1 = T.applyX((i+1)*CELL);
+    if (x1 <= 0 || x0 >= vw) return;
+    // Fit to the visible slice of the column, so a half-scrolled header still reads.
+    const avail = Math.max(24, Math.min(x1, vw) - Math.max(x0, 0) - 14);
+    const f = fitHeader(s.label, s.short, avail);
+    hdr.push({id:"s"+i, kind:"col", x:Math.max(8, Math.min((x0+x1)/2, vw-8)), y:16, t:f.t, size:f.size, w:x1-x0, i});
+  });
+  const gridLeft = T.applyX(0);
+  TOPICS.forEach((t,i)=>{
+    const y0 = T.applyY(i*CELL), y1 = T.applyY((i+1)*CELL);
+    if (y1 <= 34 || y0 >= vh) return;
+    const h = y1 - y0;
+    // Shrink the label on short rows rather than dropping it: at ~1280px wide a
+    // row is only ~57px tall, which used to suppress every topic label.
+    const size = Math.max(9, Math.min(12, Math.round(h / 4.5)));
+    const txt = clip(t, 30);
+    const tw = measure(txt, size, 600);
+    // Sit just outside the grid when there is room; pin to the viewport once the
+    // grid's left edge has been panned off-screen.
+    const x = Math.max(10, Math.min(gridLeft - tw - 16, vw - tw - 10));
+    hdr.push({id:"t"+i, kind:"row", x, y:Math.max(46, Math.min((y0+y1)/2, vh-10)), t, h, i,
+              size, txt, tw});
+  });
   gHdr.selectAll("rect.hdr-band").data([0]).join("rect").attr("class","hdr-band").attr("x",0).attr("y",0).attr("width",vw).attr("height",32);
+  // Row labels float over the map, so give each one a plate to sit on.
+  const ROWMIN = 26;  // below this a row is too thin to carry a readable label
+  gHdr.selectAll("rect.hdr-pill").data(hdr.filter(d=>d.kind==="row" && d.h>ROWMIN), d=>d.id).join("rect")
+    .attr("class","hdr-pill").attr("rx",5)
+    .attr("x",d=>d.x-7).attr("y",d=>d.y-(d.size+8)/2).attr("width",d=>d.tw+14).attr("height",d=>d.size+8);
   gHdr.selectAll("text").data(hdr, d=>d.id).join("text")
     .attr("class","halo").attr("x",d=>d.x).attr("y",d=>d.y)
     .attr("text-anchor", d=> d.kind==="col" ? "middle" : "start").attr("dominant-baseline","middle")
-    .attr("font-size", d=> d.kind==="col" ? 13 : 12).attr("font-weight", d=> d.kind==="col" ? 700 : 600)
+    .attr("font-size", d=> d.size).attr("font-weight", d=> d.kind==="col" ? 700 : 600)
     .attr("fill", d=> d.kind==="col" ? ink : muted)
     .style("pointer-events","none")
-    .text(d=> d.kind==="col" ? clip(d.t, Math.max(4, Math.floor(d.w/7.4))) : (d.h > 60 ? clip(d.t, 30) : ""));
+    .text(d=> d.kind==="col" ? d.t : (d.h > ROWMIN ? d.txt : ""));
 }
 function clip(t, n){ return t.length > n ? t.slice(0, Math.max(1,n-1)) + "…" : t; }
 
+/* Real text metrics, so headers shrink to fit instead of being chopped at a
+   guessed character count. Canvas and SVG use the same font stack. */
+const measure = (() => {
+  const ctx = document.createElement("canvas").getContext("2d");
+  return (t, size, weight) => {
+    ctx.font = `${weight} ${size}px "Public Sans", system-ui, sans-serif`;
+    return ctx.measureText(t).width;
+  };
+})();
+function clipToWidth(t, maxW, size, weight){
+  if (measure(t, size, weight) <= maxW) return t;
+  let s = t;
+  while (s.length > 1 && measure(s + "…", size, weight) > maxW) s = s.slice(0, -1);
+  return s + "…";
+}
+// Widest label that fits, at the largest size that fits: full text first, then
+// the abbreviation, then the abbreviation clipped.
+function fitHeader(full, short, maxW){
+  for (let size = 13; size >= 11; size--) if (measure(full, size, 700) <= maxW) return {t: full, size};
+  for (let size = 13; size >= 9; size--) if (measure(short, size, 700) <= maxW) return {t: short, size};
+  return {t: clipToWidth(short, maxW, 9, 700), size: 9};
+}
+
 function resize(){ const r = svg.node().getBoundingClientRect(); vw = r.width; vh = r.height; schedule(); }
+const TOPBAND = 36, BOTBAND = 30;  // sticky column headers; hint bar and zoom buttons
 function fit(anim){
-  const k = Math.min(vw/(W+40), (vh-36)/(H+40));
-  const t = d3.zoomIdentity.translate((vw - W*k)/2, 36 + (vh-36 - H*k)/2).scale(k);
+  const h = vh - TOPBAND - BOTBAND;
+  const k = Math.min(vw/(W+40), h/(H+40));
+  const t = d3.zoomIdentity.translate((vw - W*k)/2, TOPBAND + (h - H*k)/2).scale(k);
   (anim ? svg.transition().duration(reduce()?0:450) : svg).call(zoom.transform, t);
 }
 function reduce(){ return matchMedia("(prefers-reduced-motion: reduce)").matches; }
