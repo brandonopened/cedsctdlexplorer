@@ -6,13 +6,28 @@
 // and hands the access token to exportSnapshot(). Unattended builds should use
 // NEO4J_* instead — these tokens expire.
 import { createServer } from "node:http";
+import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { exportSnapshot } from "./export.mjs";
 
 const ISSUER = process.env.EDUCORE_ISSUER || "https://ed-core.org";
 const PORT = Number(process.env.EDUCORE_AUTH_PORT || 8765);
 const REDIRECT = `http://localhost:${PORT}/callback`;
-const SCOPE = "openid offline_access dme:read";
+// No offline_access: this is a one-shot export, and requesting it without
+// prompt=consent makes the authorization server reject the resumed request.
+const SCOPE = "openid dme:read";
+const TIMEOUT_MS = Number(process.env.EDUCORE_AUTH_TIMEOUT_MS || 30 * 60_000);
+
+// Best-effort; the URL is printed too, so a failure here is not fatal.
+function openBrowser(url) {
+  const [cmd, args] =
+    // rundll32, not `cmd /c start`: cmd treats the & in the query string as a
+    // command separator and truncates the URL at the first parameter.
+    process.platform === "win32" ? ["rundll32", ["url.dll,FileProtocolHandler", url]]
+    : process.platform === "darwin" ? ["open", [url]]
+    : ["xdg-open", [url]];
+  try { spawn(cmd, args, { stdio: "ignore", detached: true }).unref(); } catch {}
+}
 const b64url = (b) => b.toString("base64url");
 
 const meta = await (await fetch(`${ISSUER}/.well-known/oauth-authorization-server`)).json();
@@ -50,18 +65,20 @@ const code = await new Promise((ok, fail) => {
     const url = new URL(req.url, REDIRECT);
     if (url.pathname !== "/callback") return res.writeHead(404).end();
     const err = url.searchParams.get("error");
+    const errDesc = url.searchParams.get("error_description");
     const got = url.searchParams.get("code");
     res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(`<body style="font:16px system-ui;padding:3rem">${err || !got ? `Authorization failed: ${err}` : "Authorized. You can close this tab."}</body>`);
+    res.end(`<body style="font:16px system-ui;padding:3rem">${err || !got ? "Authorization failed: " + err + (errDesc ? ": " + errDesc : "") : "Authorized. You can close this tab."}</body>`);
     server.close();
-    err || !got ? fail(new Error(`Authorization failed: ${err || "no code"}`))
+    err || !got ? fail(new Error(`Authorization failed: ${err || "no code"}${errDesc ? ": " + errDesc : ""}`))
       : url.searchParams.get("state") !== state ? fail(new Error("State mismatch"))
       : ok(got);
   });
   server.listen(PORT, () => {
-    console.log(`\nOpen this URL to authorize, then come back:\n\n${authUrl}\n`);
+    console.log(`\nOpening your browser to authorize. If nothing opens, visit:\n\n${authUrl}\n`);
+    openBrowser(authUrl);
   });
-  setTimeout(() => { server.close(); fail(new Error("Timed out waiting for authorization")); }, 10 * 60_000);
+  setTimeout(() => { server.close(); fail(new Error("Timed out waiting for authorization")); }, TIMEOUT_MS);
 });
 
 const tok = await (await fetch(meta.token_endpoint, {
