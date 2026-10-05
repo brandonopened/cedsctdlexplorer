@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CEDS ↔ CTDL continuum atlas · EDUcore</title>
+<meta name="description" content="Where CTDL and CEDS overlap and diverge across the PK–career continuum, from the EDUcore knowledge graph.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>CEDS <span class="vs">and</span> CTDL across the PK–career continuum</h1>
+      <p class="sub">Every class and property both standards carry in the EDUcore graph, placed by stage and topic. Teal is where CTDL resolves to a CEDS tuple; marigold is what CTDL describes that CEDS does not.</p>
+    </div>
+    <div class="stamp" id="stamp">Loading…</div>
+  </header>
+
+  <nav class="continuum" id="continuum" aria-label="Filter by stage"></nav>
+
+  <div class="toolbar">
+    <div class="legend" aria-label="Legend">
+      <span class="key"><span class="sw" style="background:var(--ceds-dot)"></span>CEDS only</span>
+      <span class="key"><span class="sw" style="background:var(--overlap)"></span>Overlap (crosswalked)</span>
+      <span class="key"><span class="sw" style="background:var(--gap)"></span>CTDL only — gap in CEDS</span>
+      <span class="key"><span class="ring" style="border-color:var(--ceds)"></span>CEDS class</span>
+      <span class="key"><span class="ring" style="border-color:var(--ctdl)"></span>CTDL class</span>
+      <span class="key"><span class="ring" style="border-color:var(--ctdl);border-style:dashed"></span>CTDL class with no crosswalk</span>
+    </div>
+    <label class="thresh">Count as overlap at confidence ≥
+      <input type="range" id="thr" min="0" max="1" step="0.05" value="0">
+      <output id="thrOut">any</output>
+    </label>
+  </div>
+
+  <div class="main">
+    <div class="mapbox">
+      <svg id="map" role="img" aria-label="Zoomable map of CEDS and CTDL classes and properties by stage and topic"></svg>
+      <div class="zoomctl">
+        <button id="zin" aria-label="Zoom in">+</button>
+        <button id="zout" aria-label="Zoom out">−</button>
+        <button id="zfit" aria-label="Fit whole map" title="Fit whole map">⤢</button>
+      </div>
+      <div class="hint" id="hint">Scroll or pinch to zoom · drag to pan · click a circle</div>
+      <div class="overlay" id="overlay">
+        <div class="msg">
+          <h2 id="ovT">Loading the graph snapshot</h2>
+          <p id="ovP">Reading CEDS and CTDL classes, properties and crosswalk edges exported from the EDUcore knowledge graph.</p>
+          <div class="prog"><i id="progBar"></i></div>
+          <div id="ovBtn"></div>
+        </div>
+      </div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite">
+      <div class="empty">
+        <h2>Pick something to inspect</h2>
+        <ol>
+          <li>Zoom into a cell to see its classes; zoom further to read properties.</li>
+          <li>Click a class or a dot for its definition and crosswalk targets.</li>
+          <li>Search below to filter the map and list matches in a table.</li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <section class="finder" aria-label="Search and filter">
+    <div class="filters">
+      <input type="search" id="q" placeholder="Search classes, properties, crosswalk targets…" aria-label="Search">
+      <select id="fStd" aria-label="Standard">
+        <option value="">All standards</option><option value="CEDS">CEDS</option><option value="CTDL">CTDL (all modules)</option>
+        <option value="CTDL:CTDL">CTDL core</option><option value="CTDL:CTDLASN">CTDL-ASN</option><option value="CTDL:CTDLQData">CTDL-QData</option>
+      </select>
+      <select id="fStatus" aria-label="Status">
+        <option value="">Any status</option><option value="ctdl-only">CTDL only (gap)</option><option value="overlap">Overlap</option><option value="ceds-only">CEDS only</option>
+      </select>
+      <select id="fStage" aria-label="Stage"></select>
+      <select id="fTopic" aria-label="Topic"></select>
+      <select id="fLevel" aria-label="Level">
+        <option value="">Properties and values</option><option value="property">Properties</option><option value="value">Code values</option>
+      </select>
+      <button class="btn" id="reset">Clear filters</button>
+      <button class="btn" id="csv" hidden>Download CSV</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr>
+          <th data-k="std">Standard</th><th data-k="cls">Class</th><th data-k="name">Element</th>
+          <th data-k="stage">Stage</th><th data-k="topic">Topic</th><th data-k="status">Status</th>
+          <th data-k="target">Crosswalk to</th><th data-k="conf" class="num">Conf.</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+  <p class="foot">Stage and topic are assigned by name rules on each class, not stored in the graph, so treat placement as a reading aid. Overlap uses the EXACT_MATCH and CLOSE_MATCH edges from CTDL elements to CEDS HubReference tuples; CTDL properties with many host classes are grouped as shared. CTDL-ASN and CTDL-QData currently carry no crosswalk edges. Data from the <a href="https://educore.org">EDUcore</a> knowledge graph.</p>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

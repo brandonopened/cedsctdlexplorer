@@ -1,0 +1,32 @@
+# Render Blueprint: static site on Render's CDN.
+# Builds pull a fresh snapshot from EDUcore; if that fails the committed
+# data/atlas.json is served instead. Secrets are set in the Dashboard.
+services:
+  - type: web
+    runtime: static
+    name: ceds-ctdl-atlas
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: NEO4J_DATABASE
+        sync: false
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /data/*
+        name: Cache-Control
+        value: public, max-age=300
+    previews:
+      generation: automatic

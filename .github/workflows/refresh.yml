@@ -1,0 +1,14 @@
+# Rebuild the site nightly so the snapshot tracks the live graph.
+# Set the repo secret RENDER_DEPLOY_HOOK to the static site's Deploy Hook URL
+# (Render Dashboard → ceds-ctdl-atlas → Settings → Deploy Hook).
+name: Nightly snapshot refresh
+on:
+  schedule:
+    - cron: "17 10 * * *"   # 03:17 Pacific (PDT)
+  workflow_dispatch:
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"

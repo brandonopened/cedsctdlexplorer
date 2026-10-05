@@ -1,0 +1,21 @@
+{
+  "name": "ceds-ctdl-atlas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive atlas of CEDS and CTDL overlap and gaps across the PK–career continuum, built from the EDUcore knowledge graph.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "export": "node scripts/export.mjs",
+    "export:login": "node scripts/auth.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/serve.mjs",
+    "preview": "node scripts/serve.mjs dist",
+    "check": "node --check src/app.js && node --check scripts/export.mjs && node --check scripts/build.mjs && node --check scripts/auth.mjs"
+  },
+  "dependencies": {
+    "neo4j-driver": "^5.28.1"
+  }
+}
