@@ -1,9 +1,11 @@
-# CEDS ↔ CTDL continuum atlas
+# CEDS ↔ CTDL hub atlas
 
 An interactive, zoomable map of every CEDS and CTDL class and property in the
 [EDUcore](https://educore.org) knowledge graph, placed by PK–career stage and
-topic. It highlights where CTDL crosswalks to CEDS and where CTDL describes
-things CEDS does not.
+topic. CEDS and CTDL are peer hubs in EDUcore, so the atlas shows where they
+describe the same things from two kinds of evidence: correspondences CTDL
+publishes to CEDS, and elements of 22 other standards judged onto both hubs.
+It also shows which spoke standards lean on which hub.
 
 ## Quick start
 ```bash
